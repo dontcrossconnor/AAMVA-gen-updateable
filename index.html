@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AAMVA PDF417 Generator & Inspector Pro</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="navbar">
+      <div class="logo-group">
+        <div class="logo-badge">🪪</div>
+        <div>
+          <h1 class="logo-title">AAMVA PDF417 Studio</h1>
+          <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.15rem;">
+            <span class="badge-tag">AAMVA Compliant (v01 - v10)</span>
+            <span id="syncStatusBadge" class="badge-tag" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); border-color: rgba(6, 182, 212, 0.3);">Rules: Up-to-Date (Aug 2026)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="top-bar-actions">
+        <div class="state-selector-wrapper">
+          <label for="stateSelect">Jurisdiction:</label>
+          <select id="stateSelect" class="state-select"></select>
+        </div>
+
+        <div class="state-selector-wrapper">
+          <label for="headerVersionSelect">AAMVA Version:</label>
+          <select id="headerVersionSelect" class="state-select"></select>
+          <div class="tooltip-wrapper">
+            <span class="tooltip-icon" id="versionTooltipIcon">?</span>
+            <div class="tooltip-popover" id="versionPopover">
+              <strong>AAMVA Standard Versions</strong>
+              <p>States roll out new AAMVA barcode design standards independently. Legacy cards remain in active circulation for up to 10 years.</p>
+              <ul id="versionTooltipList"></ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sync Rules & Endpoint Configuration -->
+        <div class="tooltip-wrapper">
+          <button id="syncRulesBtn" class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.45rem 0.85rem;" title="Sync state DMV barcode rules">
+            <span>🔄 Sync Rules</span>
+          </button>
+          <div class="tooltip-popover" id="syncEndpointPopover" style="width: 380px; right: 0;">
+            <strong>Remote Rule Sync & Provider Options</strong>
+            <p>State DMVs update card specifications on rolling timelines. This sync engine pulls real-time JSON mappings of active AAMVA versions per state.</p>
+
+            <div style="background: rgba(255,255,255,0.04); padding: 0.6rem; border-radius: var(--radius-md); border: 1px solid var(--border); margin-bottom: 0.6rem;">
+              <label style="font-size: 0.725rem; font-weight: 700; color: var(--accent-cyan); display: block; margin-bottom: 0.25rem;">Sync Endpoint URL:</label>
+              <input type="text" id="endpointUrlInput" class="field-input" style="font-size: 0.75rem; padding: 0.35rem 0.5rem; width: 100%;" placeholder="https://your-domain.com/aamva-rules.json" />
+              <span style="font-size: 0.675rem; color: var(--text-muted); display: block; margin-top: 0.25rem;">Leave empty to use built-in August 2026 ruleset.</span>
+            </div>
+
+            <strong style="font-size: 0.775rem; color: var(--text-main);">Available Data Provider Options:</strong>
+            <ul style="font-size: 0.725rem; margin-top: 0.3rem;">
+              <li><strong>1. Self-Hosted Endpoint (Default/Custom)</strong>: Host a static <code>aamva-rules.json</code> file on GitHub Raw, AWS S3, or Gist containing state version mappings.</li>
+              <li><strong>2. Commercial Identity SDKs</strong>: Connect to commercial DMV API endpoints (e.g., IDScan.net DMV Cloud API, Scandit ID Capture, Dynamsoft).</li>
+              <li><strong>3. Built-In Offline Engine</strong>: Operates standalone using pre-bundled August 2026 AAMVA standards.</li>
+            </ul>
+          </div>
+        </div>
+
+        <select id="presetSelect" class="field-select" style="max-width: 220px;">
+          <option value="">Load Preset Sample...</option>
+        </select>
+        
+        <button id="resetBtn" class="btn btn-secondary">Reset Fields</button>
+      </div>
+    </header>
+
+    <main class="app-container">
+      <!-- Left Main Configuration Studio -->
+      <section class="glass-panel">
+        <div class="panel-title-bar">
+          <div class="nav-tabs">
+            <button id="tabFormBtn" class="tab-btn active">Variable Form Studio</button>
+            <button id="tabRawBtn" class="tab-btn">Raw Payload Inspector</button>
+          </div>
+          <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <span id="headerStatusBadge" class="badge-tag">Header: Compliant</span>
+            <span id="validationBadge" class="badge-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); border-color: rgba(99, 102, 241, 0.3);">Validation: Pass</span>
+          </div>
+        </div>
+
+        <!-- Form Tab Content -->
+        <div id="formTabContent">
+          <div id="accordionContainer" class="accordion-container"></div>
+        </div>
+
+        <!-- Raw Payload Inspector Tab Content -->
+        <div id="rawTabContent" style="display: none;">
+          <textarea id="rawPayloadText" class="raw-editor" spellcheck="false"></textarea>
+          <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-dim);">
+            <span>Format: Standard Header Prefix (@\n\x1e\rANSI) + Subfile Header + Tagged Fields (\r)</span>
+            <span id="payloadByteCount">0 bytes</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right PDF417 Render Studio -->
+      <section class="glass-panel">
+        <div class="panel-title-bar">
+          <h2 style="font-size: 1.1rem; font-weight: 700;">PDF417 Barcode Output</h2>
+          <span id="eccBadge" style="font-size: 0.8rem; color: var(--accent-cyan);">ECC Level 4</span>
+        </div>
+
+        <div class="barcode-card">
+          <div class="barcode-wrapper">
+            <canvas id="barcodeCanvas"></canvas>
+          </div>
+          <div id="renderError" style="color: var(--accent-rose); font-size: 0.85rem; margin-top: 0.75rem; display: none;"></div>
+        </div>
+
+        <div class="field-wrapper">
+          <label class="field-label">ECC Security Level (AAMVA Standard: 3 to 5)</label>
+          <select id="eccLevel" class="field-select">
+            <option value="3">Level 3 (Standard)</option>
+            <option value="4" selected>Level 4 (Recommended / High)</option>
+            <option value="5">Level 5 (Maximum Security)</option>
+            <option value="2">Level 2 (Compact)</option>
+          </select>
+        </div>
+
+        <div class="field-wrapper">
+          <label class="field-label">Barcode High Resolution Scale</label>
+          <input type="range" id="scaleRange" min="2" max="6" value="3" class="field-input" />
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-top: 1rem;">
+          <button id="downloadPngBtn" class="btn btn-primary" style="flex: 1;">Download PNG</button>
+          <button id="downloadSvgBtn" class="btn btn-secondary" style="flex: 1;">Download SVG</button>
+          <button id="copyPayloadBtn" class="btn btn-secondary">Copy String</button>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
