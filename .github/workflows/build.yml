@@ -1,10 +1,12 @@
-name: Build Cross-Platform Release
+name: Build & Release Cross-Platform Studio
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 jobs:
@@ -14,7 +16,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: Linux-App
+            asset_pattern: "dist_electron/*"
+          - os: macos-latest
+            artifact_name: macOS-App
+            asset_pattern: "dist_electron/*.zip"
+          - os: windows-latest
+            artifact_name: Windows-App
+            asset_pattern: "dist_electron/*.exe"
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -27,12 +38,6 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Linux Dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools icnsutils graphicsmagick snapd
-
       - name: Install Dependencies
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
@@ -41,7 +46,7 @@ jobs:
       - name: Build Web App
         run: npm run build
 
-      - name: Build Electron Executables
+      - name: Build Electron Executable
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -50,12 +55,50 @@ jobs:
           elif [ "${{ runner.os }}" = "Windows" ]; then
             npx electron-builder --win portable
           else
-            npx electron-builder --linux dir
+            npx electron-builder --linux AppImage
           fi
         shell: bash
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: AAMVA-Studio-${{ runner.os }}
-          path: dist_electron/*
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.asset_pattern }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release_assets
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: "AAMVA PDF417 Studio v1.0.0"
+          body: |
+            ## 🪪 AAMVA PDF417 Studio v1.0.0 Official Release
+
+            Cross-platform desktop application for AAMVA driver's license barcode generation and multi-version testing.
+
+            ### Downloads:
+            - 🪟 **Windows**: `AAMVA PDF417 Studio 1.0.0.exe` (Portable Standalone Executable)
+            - 🍏 **macOS**: `AAMVA PDF417 Studio-1.0.0-mac.zip` (Portable Mac App)
+            - 🐧 **Linux**: `AAMVA PDF417 Studio-1.0.0.AppImage` (Linux AppImage)
+          draft: false
+          prerelease: false
+          files: |
+            release_assets/Windows-App/*
+            release_assets/macOS-App/*
+            release_assets/Linux-App/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
