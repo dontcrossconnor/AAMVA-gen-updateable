@@ -27,6 +27,8 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
         run: npm ci
 
       - name: Build Web App
